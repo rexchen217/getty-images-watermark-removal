@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 配准缓存（运行时自动生成，可安全删除）
+cache/
+
+# 系统文件
+Thumbs.db
+.DS_Store

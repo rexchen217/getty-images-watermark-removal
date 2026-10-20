@@ -1,0 +1,260 @@
+{
+  "schema_version": "1",
+  "capabilities": [
+    "reference-alignment",
+    "stripe-detection",
+    "watermark-removal",
+    "qc-report"
+  ],
+  "dependencies": [
+    {
+      "id": "python",
+      "type": "runtime",
+      "required": true,
+      "auth_type": "none",
+      "capabilities": [
+        "reference-alignment",
+        "stripe-detection",
+        "watermark-removal",
+        "qc-report"
+      ],
+      "checks": [
+        {
+          "id": "python-version",
+          "type": "python",
+          "min_version": "3.10",
+          "required": true
+        }
+      ],
+      "setup": {
+        "official_home_url": "https://www.python.org/",
+        "official_docs_url": "https://docs.python.org/3/",
+        "download_url": "https://www.python.org/downloads/",
+        "steps": [
+          "确认可用的解释器：命令 python --version，或 python3 --version",
+          "若版本低于 3.10，从官方下载页安装 3.10 或更高版本",
+          "安装时勾选把 Python 加入 PATH，避免后续只能靠绝对路径调用",
+          "重新打开终端，让 PATH 生效"
+        ],
+        "verify": "python -c \"import sys; print(sys.version_info[:3])\"",
+        "security": "只从 python.org 官方下载页获取安装包；不需要管理员权限即可完成用户级安装；本 Skill 不联网、不写注册表、不修改系统 PATH 之外的环境变量。",
+        "verified_at": "2026-10-06",
+        "applies_to_version": "3.10 及以上"
+      },
+      "degradation": [
+        {
+          "capability": "reference-alignment",
+          "trigger": "未安装 3.10 及以上 Python，或 python 命令不在 PATH 中",
+          "fallback": "不执行本地脚本，改为输出对齐参数建议：需要把参考图整体缩放到目标图尺寸，并给出可用的平移量区间，由用户在设计软件里手动完成对齐",
+          "user_input": "两张图的文件路径与像素尺寸",
+          "limitations": "不产出结果图，不给出去水印后的量化指标，只能提供参数建议",
+          "evidence_label": "已验证",
+          "recovery": "安装 3.10 及以上 Python 后重新运行 scripts/check_environment.py",
+          "stop_condition": "用户要求必须交付去水印结果图，且当前环境无法安装运行时"
+        },
+        {
+          "capability": "stripe-detection",
+          "trigger": "未安装 3.10 及以上 Python，或 python 命令不在 PATH 中",
+          "fallback": "不执行频谱与折叠分析，改为给出人工测量步骤：在目标图上量出相邻两条条纹的像素间距，并说明该间距就是条纹周期",
+          "user_input": "目标图路径，以及用户量出的相邻条纹像素间距",
+          "limitations": "无法自动估计条纹方向与周期，一切数值依赖用户手动测量",
+          "evidence_label": "已验证",
+          "recovery": "安装 3.10 及以上 Python 后重新运行检测",
+          "stop_condition": "用户无法提供条纹间距，且需要一个可复核的自动检测结论"
+        },
+        {
+          "capability": "watermark-removal",
+          "trigger": "未安装 3.10 及以上 Python，或 python 命令不在 PATH 中",
+          "fallback": "不执行去除，改为输出等效的手工流程：用频域去网纹类滤镜配合已知周期参数处理，并说明该操作会同时削弱同方向的真实纹理",
+          "user_input": "目标图路径与条纹方向、周期",
+          "limitations": "结果质量依赖用户手工调参，没有参考图引导，也没有保真度评估",
+          "evidence_label": "已验证",
+          "recovery": "安装 3.10 及以上 Python 后重新运行去除",
+          "stop_condition": "原图细节不可再生，用户不接受手工处理带来的纹理损失"
+        },
+        {
+          "capability": "qc-report",
+          "trigger": "未安装 3.10 及以上 Python，或 python 命令不在 PATH 中",
+          "fallback": "不产出机器可读报告，改为给出人工核对清单：条纹是否消失、方向是否与原先一致、文字与边缘有没有发糊",
+          "user_input": "处理前后的图像",
+          "limitations": "没有抑制比、结构相关度等量化指标，结论只能定性",
+          "evidence_label": "已验证",
+          "recovery": "安装 3.10 及以上 Python 后重新运行并获得 JSON 报告",
+          "stop_condition": "用户需要一个可判定的量化结论用于交付验收"
+        }
+      ]
+    },
+    {
+      "id": "pillow",
+      "type": "local-tool",
+      "required": true,
+      "auth_type": "none",
+      "capabilities": [
+        "reference-alignment",
+        "watermark-removal",
+        "qc-report"
+      ],
+      "checks": [
+        {
+          "id": "pillow-runtime",
+          "type": "cli",
+          "command": "python",
+          "required": true
+        }
+      ],
+      "setup": {
+        "official_home_url": "https://python-pillow.org/",
+        "official_docs_url": "https://pillow.readthedocs.io/",
+        "download_url": "https://pypi.org/project/pillow/",
+        "steps": [
+          "用目标解释器安装：python -m pip install --upgrade pillow",
+          "安装后运行导入自检：python -c \"import PIL; print(PIL.__version__)\"",
+          "若使用虚拟环境，先激活环境再执行上面的安装命令"
+        ],
+        "verify": "python -c \"import PIL; print(PIL.__version__)\"",
+        "security": "只从 PyPI 或 Python 官方发行渠道安装；无需凭据、无需联网权限以外的授权；本 Skill 不使用 Pillow 的网络能力。",
+        "verified_at": "2026-10-06",
+        "applies_to_version": "Pillow 9.0 及以上"
+      },
+      "degradation": [
+        {
+          "capability": "reference-alignment",
+          "trigger": "Pillow 无法导入，脚本在解码图像或重采样时直接失败",
+          "fallback": "若用户能提供已解码的浮点数组或未压缩位图，可绕开解码步骤继续对齐；否则只输出对齐方法说明",
+          "user_input": "未压缩的图像数据，或两张图的像素尺寸",
+          "limitations": "不能读写 PNG、JPEG 等压缩格式，也不能做双三次重采样",
+          "evidence_label": "已验证",
+          "recovery": "执行 python -m pip install --upgrade pillow 后重跑 check_environment.py",
+          "stop_condition": "用户只能提供 PNG 或 JPEG 输入"
+        },
+        {
+          "capability": "watermark-removal",
+          "trigger": "Pillow 无法导入，结果图无法按目标尺寸写回",
+          "fallback": "把去除结果以原始浮点数组形式导出，由用户自行保存为图像",
+          "user_input": "目标输出格式与保存路径",
+          "limitations": "不产出可直接查看的图像文件，且高位深数组需要用户自行转换",
+          "evidence_label": "已验证",
+          "recovery": "安装 Pillow 后重新运行，直接输出去水印图像",
+          "stop_condition": "用户需要直接可用的图像文件且无法安装 Pillow"
+        },
+        {
+          "capability": "qc-report",
+          "trigger": "Pillow 无法导入，报告中的图像域指标无法计算",
+          "fallback": "只输出检测阶段的数值结论：条纹方向、周期、显著度与振幅",
+          "user_input": "无",
+          "limitations": "缺少抑制比、高频结构相关度与低频偏差，报告无法给出 pass 或 review 判定",
+          "evidence_label": "已验证",
+          "recovery": "安装 Pillow 后重新运行以取得完整报告",
+          "stop_condition": "验收要求提供 pass 或 review 级别的质量判定"
+        }
+      ]
+    },
+    {
+      "id": "numpy",
+      "type": "local-tool",
+      "required": true,
+      "auth_type": "none",
+      "capabilities": [
+        "stripe-detection",
+        "watermark-removal",
+        "qc-report"
+      ],
+      "checks": [
+        {
+          "id": "numpy-runtime",
+          "type": "cli",
+          "command": "python",
+          "required": true
+        }
+      ],
+      "setup": {
+        "official_home_url": "https://numpy.org/",
+        "official_docs_url": "https://numpy.org/doc/",
+        "download_url": "https://pypi.org/project/numpy/",
+        "steps": [
+          "用目标解释器安装：python -m pip install --upgrade numpy",
+          "安装后运行导入自检：python -c \"import numpy; print(numpy.__version__)\"",
+          "若使用虚拟环境，先激活环境再执行上面的安装命令"
+        ],
+        "verify": "python -c \"import numpy; print(numpy.__version__)\"",
+        "security": "只从 PyPI 或 NumPy 官方渠道安装；无需凭据；本 Skill 只使用本地数组与傅里叶运算，不发起网络请求。",
+        "verified_at": "2026-10-06",
+        "applies_to_version": "NumPy 1.24 及以上"
+      },
+      "degradation": [
+        {
+          "capability": "stripe-detection",
+          "trigger": "NumPy 无法导入，傅里叶分析与折叠统计无法执行",
+          "fallback": "改用 Pillow 的图像滤镜与直方图做粗略周期性判断，只给方向与是否存在条纹的定性结论",
+          "user_input": "目标图路径，以及用户估计的条纹方向",
+          "limitations": "拿不到周期数值、显著度与振幅，无法给出可复核的定量结论",
+          "evidence_label": "已验证",
+          "recovery": "执行 python -m pip install --upgrade numpy 后重跑 check_environment.py",
+          "stop_condition": "任务要求给出条纹周期的精确数值"
+        },
+        {
+          "capability": "watermark-removal",
+          "trigger": "NumPy 无法导入，空间增益估计与逐像素减法无法执行",
+          "fallback": "输出人工处理建议：按已知周期与方向，在编辑器里用去网纹滤镜近似处理",
+          "user_input": "条纹方向与周期",
+          "limitations": "没有参考图引导的空间增益，亮暗不均处容易残留或过减",
+          "evidence_label": "已验证",
+          "recovery": "安装 NumPy 后重新运行自动去除",
+          "stop_condition": "图像存在明显的条纹强度渐变，手工处理无法保证均匀去除"
+        },
+        {
+          "capability": "qc-report",
+          "trigger": "NumPy 无法导入，报告中的频谱与统计指标无法计算",
+          "fallback": "只保留结构性结论：是否检测到条纹、方向判断、是否已切换为自参考模式",
+          "user_input": "无",
+          "limitations": "没有任何量化指标，报告不能用于严格验收",
+          "evidence_label": "已验证",
+          "recovery": "安装 NumPy 后重新运行以取得完整指标",
+          "stop_condition": "验收要求提供抑制比或结构保真度指标"
+        }
+      ]
+    }
+  ],
+  "functional_degradations": [
+    {
+      "capability": "reference-alignment",
+      "trigger": "参考图缺失、与目标图内容不一致，或对齐度低于 0.60",
+      "fallback": "自动切换为自参考模式，只用目标图自身的高频周期性估计条纹；也可显式加 --no-reference 跳过对齐",
+      "user_input": "无参考图时无需补充；若参考图内容确实不同，需要用户提供同内容的低清干净图",
+      "limitations": "自参考模式无法区分水印与本身就周期性的真实纹理，误伤风险高于参考引导模式",
+      "evidence_label": "已验证",
+      "recovery": "提供内容一致的低清干净参考图后重新运行，即可回到参考引导模式",
+      "stop_condition": "目标图中的条纹与真实纹理方向、周期高度重合，且用户不接受任何纹理损失"
+    },
+    {
+      "capability": "stripe-detection",
+      "trigger": "目标图没有可检测的条状水印，或条纹周期超出搜索范围、振幅低于门限、周期解释率低于 0.30",
+      "fallback": "报告 status 为 no_watermark_detected 并以退出码 4 结束，原样输出目标图，绝不生成去除结果",
+      "user_input": "无；若用户确信存在水印，需要用户提供条纹的大致周期或方向",
+      "limitations": "不产出任何去水印结果，报告的周期与振幅字段为空",
+      "evidence_label": "已验证",
+      "recovery": "用 --min-period、--max-period 收窄或放宽搜索范围，或用 --angle 指定方向后重试",
+      "stop_condition": "用户要求必须输出一张去水印图，但图中并不存在条状水印"
+    },
+    {
+      "capability": "watermark-removal",
+      "trigger": "条纹方向与图像中真实纹理的方向一致，直接相减会造成过减",
+      "fallback": "提高纹理保护强度或改用保守档：--guard 0.6 或 --strength conservative，宁可残留也不误伤",
+      "user_input": "无",
+      "limitations": "保守档会留下可感知的条纹残留，抑制比下降",
+      "evidence_label": "已验证",
+      "recovery": "对同方向纹理较弱的区域可改回平衡档或激进档，或用 --strength 逐档对比",
+      "stop_condition": "图像主体由与条纹同方向、同周期的规则纹理构成"
+    },
+    {
+      "capability": "qc-report",
+      "trigger": "处于自参考模式，或用户未提供参考图，无法计算低频锚定偏差",
+      "fallback": "低频偏差字段输出 null，其余指标照常计算，判定仍按抑制比与结构保真度给出",
+      "user_input": "无",
+      "limitations": "无法反映结果相对干净参考图的低频色调漂移",
+      "evidence_label": "已验证",
+      "recovery": "补上低分辨率干净参考图后重新运行，重新得到低频偏差",
+      "stop_condition": "验收明确要求低频色调一致性指标"
+    }
+  ]
+}
