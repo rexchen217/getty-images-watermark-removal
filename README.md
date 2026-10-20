@@ -4,11 +4,16 @@
 
 本仓库同时是一个 Agent Skill（`SKILL.md` + `scripts/` + `references/`），可被 CodeBuddy / Claude 类 agent 直接加载，也可完全脱离 agent 作为命令行工具独立使用。
 
+> **🎯 专用于 Getty Images 图片。** 本工具针对 Getty Images（以及版式相近的 Shutterstock 等图库）的预览图水印设计：一条横贯画面的半透明灰条 + 第二层不透明白色 logo/文字，外加一个独立的角落数字 ID 徽标。算法里大量"尺寸先验"和"混合模型"都建立在这类图库水印的已知形态上。**输入必须是 Getty 系列同内容的高低两版导出**——见下方「使用教程·核心前提」。非 Getty 来源的水印若形态不符，请先跑体检脚本确认类型，勿直接套用。
+
 ---
 
 ## 1. 它解决什么问题
 
-同一张图通常有两种导出：**低分辨率但干净**、**高分辨率但带水印**。
+这是 **Getty Images 专属**场景。Getty 同一张图通常有两种导出：**低分辨率但干净**、**高分辨率但带水印**。
+
+- **低清版**：Getty 预览缩略图（通常为 ~612px 宽），**无水印**——这是 Getty 故意提供的低清样本，用来在授权前预览画面；
+- **高清版**：购买/下载的高清大图（常为 2048px 宽或更高），**带有半透明水印条 + 白色 logo + 角落 ID 徽标**。
 
 常规去水印的做法（局部模糊、内容识别填充、AI 重绘）都以牺牲水印区的真实细节为代价。本项目的做法不同：
 
@@ -168,7 +173,7 @@ excess = |step_clean| − |step_target|        阈值 2/255
 
 **B 分支 QC 的两个坑**：高通 sigma 必须等于重建用的 `SIG_SPLIT=4.0`（用 σ=1.2 测而按 σ=4.0 重建，实测比值从 1.65 掉到 0.28，纯伪影）；统计必须排除参考图回填区（白字像素 |高通| 可达 0.5，真实纹理只有 0.01，混在一起算会被 logo 主导，比值掉到 0.17）。
 
-## 9. 用法
+## 9. 使用教程
 
 ### 环境
 
@@ -179,22 +184,51 @@ python -m pip install pillow numpy
 python scripts/check_environment.py --capability watermark-removal
 ```
 
-### B 分支（Getty 类图库水印，最常用）
+### 核心前提：必须准备两张 Getty 同内容的图
+
+本工具**只接受两种输入**，缺一不可，且必须是同一张图的两个官方导出：
+
+| 输入 | 命令行参数 | 是什么 | 从哪来 |
+|---|---|---|---|
+| **① 低清晰度预览图（干净，无水印）** | `--reference` | Getty 提供的低清预览缩略图，约 612px 宽，**没有任何水印** | 在 Getty 网页上预览/采集到的未授权低清样本 |
+| **② 高清晰度水印图（带水印）** | `--target` | 已下载的高清大图，常为 2048px 宽或更高，**带半透明水印条 + 白色 logo + 角落 ID 徽标** | 购买或下载的授权高清文件 |
+
+> **⚠️ 两个重点，务必确认：**
+> 1. **低清图必须真的无水印、且与高清图是同一内容。** 它就是用来当"低频真值"的——如果低清图本身也带水印，算法会把两图的水印一起当成内容，去不干净。
+> 2. **高清图必须带水印。** 本工具做的是"从两图差异里把水印算出来减掉"；若高清图已经干净，直接拿去用，不需要也不应该跑本工具（它会在干净图上凭空制造过减）。
+>
+> 两图**内容必须一致**（同一构图、同一裁剪）。若只是同主题的不同图，方法不适用——请先用体检脚本核对，或换自参考模式（见 SKILL.md，风险更高）。
+
+把两张图放到同一目录下，例如：
+
+```
+my_photo/
+├── 612_preview.jpg        # ① 低清干净预览图   → --reference
+└── 2048_watermarked.jpg   # ② 高清水印图       → --target
+```
+
+### 标准流程（Getty 图库水印，B 分支，最常用）
 
 ```bash
-# 1. 只读体检：判类型、定框、拿可直接粘贴的 --box 参数
-python scripts/inspect_watermark.py --reference 612_clean.jpg --target 2048_watermarked.jpg
+cd my_photo
 
-# 2. 按体检给出的框执行（可重复传多个 --box）
-python scripts/rect_overlay.py --reference 612_clean.jpg --target 2048_watermarked.jpg \
+# ① 只读体检：判类型、定框、输出可直接粘贴的 --box 参数
+python scripts/inspect_watermark.py --reference 612_preview.jpg --target 2048_watermarked.jpg
+
+# ② 按体检给出的 --box 执行去除（可重复传多个 --box）
+python scripts/rect_overlay.py --reference 612_preview.jpg --target 2048_watermarked.jpg \
     --output result.png --report report.json --box 718,877,1500,2048
 
-# 3. 复核：漏检扫描 + 接缝实测
-python scripts/inspect_watermark.py --reference 612_clean.jpg --target 2048_watermarked.jpg \
+# ③ 复核：漏检扫描 + 接缝实测（确认没有"整条主带被跳过"或可见台阶）
+python scripts/inspect_watermark.py --reference 612_preview.jpg --target 2048_watermarked.jpg \
     --clean result.png
 ```
 
+输出：`result.png`（与高清图同尺寸的去水印结果）+ `report.json`（质检报告）。
+
 ### A 分支（周期性条纹）
+
+适用于条纹状水印（非 Getty 图库条），同样是「低清干净图 + 高清水印图」两输入：
 
 ```bash
 python scripts/remove_stripe_watermark.py --reference clean_lowres.jpg --target striped_hires.jpg
@@ -204,7 +238,7 @@ python scripts/remove_stripe_watermark.py --reference clean_lowres.jpg --target 
 ### 批量
 
 ```bash
-# 清单每行「参考图|目标图」，可摊掉逐张起进程的导入开销
+# 清单每行「低清干净图|高清水印图」，可摊掉逐张起进程的导入开销
 python scripts/rect_overlay.py --batch pairs.txt --output-dir out/
 ```
 
